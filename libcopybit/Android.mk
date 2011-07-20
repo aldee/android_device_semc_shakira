@@ -17,7 +17,7 @@ LOCAL_PATH:= $(call my-dir)
 # HAL module implemenation, not prelinked and stored in
 # hw/<COPYPIX_HARDWARE_MODULE_ID>.<ro.board.platform>.so
 
-ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),shakira)
+ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),shakiraa)
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
 LOCAL_PRELINK_MODULE := false

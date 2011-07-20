@@ -31,7 +31,8 @@ insmod /system/lib/modules/dm-mod.ko
 insmod /system/lib/modules/dm-crypt.ko
 insmod /system/lib/modules/twofish_common.ko
 insmod /system/lib/modules/twofish.ko
-
+insmod /system/lib/modules/ax8_smartass.ko
+insmod /system/lib/modules/x8mddi.ko
 
 # Needed by radio
 mkdir /data/radio

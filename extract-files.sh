@@ -86,7 +86,6 @@ adb pull /system/etc/firmware/fm_tx_init_1273.2.bts ../../../vendor/$VENDOR/$DEV
 adb pull /system/etc/firmware/fmc_init_1273.1.bts ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/etc/firmware/fmc_init_1273.2.bts ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/etc/firmware/TIInit_7.2.31.bts ../../../vendor/$VENDOR/$DEVICE/proprietary
-adb pull /system/etc/tiwlan_firmware.bin ../../../vendor/$VENDOR/$DEVICE/proprietary
 
 ## WIFI & BT TI1271
 adb pull /system/bin/hciattach ../../../vendor/$VENDOR/$DEVICE/proprietary
@@ -108,15 +107,17 @@ adb pull /system/etc/AudioFilterProduct.csv ../../../vendor/$VENDOR/$DEVICE/prop
 adb pull /system/etc/AudioFilterPlatform.csv ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/etc/vold.fstab ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/etc/sensors.conf ../../../vendor/$VENDOR/$DEVICE/proprietary
-adb pull /system/lib/hw/sensors.default.so ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/bin/chargemon ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/bin/akmd2 ../../../vendor/$VENDOR/$DEVICE/proprietary
 
 #offline charger
-PRODUCT_COPY_FILES += \
 adb pull /system/bin/chargemon ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/bin/semc_chargalg ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/lib/libmiscta.so ../../../vendor/$VENDOR/$DEVICE/proprietary
+
+#hw
+adb pull /system/lib/hw/copybit.msm7k.so ../../../vendor/$VENDOR/$DEVICE/proprietary
+adb pull /system/lib/hw/sensors.default.so ../../../vendor/$VENDOR/$DEVICE/proprietary
 
 ./setup-makefiles.sh
 

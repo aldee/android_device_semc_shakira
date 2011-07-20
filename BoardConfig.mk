@@ -21,10 +21,12 @@ WPA_SUPPLICANT_VERSION := VER_0_6_X
 WIFI_DRIVER_MODULE_PATH := /system/lib/modules/tiwlan_drv.ko
 WIFI_DRIVER_MODULE_NAME := tiwlan_drv
 WIFI_FIRMWARE_LOADER := wlan_loader
+WIFI_EXT_MODULE_PATH := /system/lib/modules/sdio.ko
+WIFI_EXT_MODULE_NAME := sdio
 
 BOARD_HAVE_BLUETOOTH := true
-BOARD_HAVE_FM_RADIO := true
-BOARD_GLOBAL_CFLAGS += -DHAVE_FM_RADIO
+#BOARD_HAVE_FM_RADIO := true
+#BOARD_GLOBAL_CFLAGS += -DHAVE_FM_RADIO
 
 BOARD_USES_QCOM_HARDWARE := true
 BOARD_USES_QCOM_LIBS := true
@@ -45,14 +47,20 @@ TARGET_USES_OLD_LIBSENSORS_HAL:=true
 BOARD_USE_USB_MASS_STORAGE_SWITCH := true
 TARGET_USE_CUSTOM_LUN_FILE_PATH := /sys/devices/platform/msm_hsusb/gadget/lun
 
+TARGET_USE_CUSTOM_VIBRATOR_FILE_PATH := /sys/devices/platform/msm_pmic_vibrator/enable
 
-TARGET_NO_BOOTLOADER := true
+TARGET_RECOVERY_PRE_COMMAND := "touch /cache/recovery/boot;sync;"
+BOARD_HAS_BOOT_RECOVERY := true
+BOARD_HAS_SMALL_RECOVERY := true
 BOARD_HAS_NO_MISC_PARTITION := true
 BOARD_USES_RECOVERY_CHARGEMODE := false
 BOARD_HAS_NO_SELECT_BUTTON := true
+BOARD_LDPI_RECOVERY := true
+
 
 BOARD_KERNEL_CMDLINE := console=null
 BOARD_KERNEL_BASE := 0x00200000
 
 BOARD_SDCARD_INTERNAL_DEVICE := /dev/block/mmcblk0p1
-BOARD_HAS_NO_SELECT_BUTTON := true
+# A custom ota package maker for a device without a boot partition
+TARGET_RELEASETOOL_OTA_FROM_TARGET_SCRIPT := device/semc/shakira/releasetools/semc_ota_from_target_files

@@ -33,8 +33,6 @@ PRODUCT_PACKAGES += \
     com.android.future.usb.accessory
 
 
-DISABLE_DEXPREOPT := false
-
 PRODUCT_SPECIFIC_DEFINES += TARGET_PRELINKER_MAP=$(TOP)/device/semc/shakira/prelink-linux-arm-x8.map
 
 # These is the hardware-specific overlay, which points to the location
@@ -49,18 +47,22 @@ PRODUCT_COPY_FILES += \
 
 # Init files
 PRODUCT_COPY_FILES += \
-    device/semc/shakira/init.delta.rc:root/init.delta.rc \
-    device/semc/shakira/ueventd.delta.rc:root/ueventd.delta.rc \
-    device/semc/shakira/recovery.fstab:root/etcrec/recovery.fstab \
+    device/semc/shakira/prebuilt/init.delta.rc:root/init.delta.rc \
+    device/semc/shakira/prebuilt/ueventd.delta.rc:root/ueventd.delta.rc \
     device/semc/shakira/prebuilt/hw_config.sh:system/etc/hw_config.sh \
-    device/semc/shakira/prebuilt/init.qcom.bt.sh:system/etc/init.qcom.bt.sh
+    device/semc/shakira/prebuilt/bootrec:root/sbin/bootrec \
+    device/semc/shakira/recovery.fstab:root/etcrec/recovery.fstab \
+    device/semc/shakira/prebuilt/vold.fstab:system/etc/vold.fstab
+#    device/semc/shakira/prebuilt/logo.rle:root/logo.rle \
+
     
 #xrecovery
 PRODUCT_COPY_FILES += \
     device/semc/shakira/prebuilt/chargemon:system/bin/chargemon \
     device/semc/shakira/prebuilt/ramdisk.tar:system/bin/ramdisk.tar \
-    device/semc/shakira/prebuilt/sh:system/recovery/sh \
-    device/semc/shakira/prebuilt/recovery.tar.bz2:system/recovery/recovery.tar.bz2 
+    device/semc/shakira/prebuilt/sh:system/xbin/sh
+#    device/semc/shakira/prebuilt/ramdisk.tar.bz2:system/boot/ramdisk.tar.bz2 \
+#    device/semc/shakira/prebuilt/recovery.tar.bz2:system/bin/recovery.tar.bz2 \
 
 #WIFI modules and configs
 PRODUCT_COPY_FILES += \
@@ -70,6 +72,20 @@ PRODUCT_COPY_FILES += \
     device/semc/shakira/modules/sdio.ko:system/lib/modules/sdio.ko \
     device/semc/shakira/modules/tiwlan_drv.ko:system/lib/modules/tiwlan_drv.ko
 #    device/semc/shakira/modules/tiap_drv.ko:system/lib/modules/tiap_drv.ko \
+
+#recovery resources
+PRODUCT_COPY_FILES += \
+    bootable/recovery/res/images/icon_clockwork.png:root/res/images/icon_clockwork.png \
+    bootable/recovery/res/images/icon_error.png:root/res/images/icon_error.png \
+    bootable/recovery/res/images/icon_installing.png:root/res/images/icon_installing.png \
+    bootable/recovery/res/images/indeterminate1.png:root/res/images/indeterminate1.png \
+    bootable/recovery/res/images/indeterminate2.png:root/res/images/indeterminate2.png \
+    bootable/recovery/res/images/indeterminate3.png:root/res/images/indeterminate3.png \
+    bootable/recovery/res/images/indeterminate4.png:root/res/images/indeterminate4.png \
+    bootable/recovery/res/images/indeterminate5.png:root/res/images/indeterminate5.png \
+    bootable/recovery/res/images/indeterminate6.png:root/res/images/indeterminate6.png \
+    bootable/recovery/res/images/progress_empty.png:root/res/images/progress_empty.png \
+    bootable/recovery/res/images/progress_fill.png:root/res/images/progress_fill.png
 
 PRODUCT_COPY_FILES += \
     frameworks/base/data/etc/handheld_core_hardware.xml:system/etc/permissions/handheld_core_hardware.xml \
@@ -84,17 +100,20 @@ PRODUCT_COPY_FILES += \
 
 #Kernel modules
 PRODUCT_COPY_FILES += \
-    device/semc/shakira/prebuilt/dm-mod.ko:system/lib/modules/dm-mod.ko \
-    device/semc/shakira/prebuilt/dm-crypt.ko:system/lib/modules/dm-crypt.ko \
-    device/semc/shakira/prebuilt/twofish.ko:system/lib/modules/twofish.ko \
-    device/semc/shakira/prebuilt/twofish_common.ko:system/lib/modules/twofish_common.ko 
+    device/semc/shakira/modules/ax8_smartass.ko:system/lib/modules/ax8_smartass.ko \
+    device/semc/shakira/modules/x8mddi.ko:system/lib/modules/x8mddi.ko \
+    device/semc/shakira/modules/dm-mod.ko:system/lib/modules/dm-mod.ko \
+    device/semc/shakira/modules/dm-crypt.ko:system/lib/modules/dm-crypt.ko \
+    device/semc/shakira/modules/twofish.ko:system/lib/modules/twofish.ko \
+    device/semc/shakira/modules/twofish_common.ko:system/lib/modules/twofish_common.ko 
 
 #crappy headset
 PRODUCT_COPY_FILES += \
     vendor/semc/shakira/proprietary/hal_seport.default.so:system/lib/hw/hal_seport.shakira.so \
     device/semc/shakira/prebuilt/SystemConnector.apk:system/app/SystemConnector.apk \
     vendor/semc/shakira/proprietary/libuinputdevicejni.so:system/lib/libsystemconnector/libuinputdevicejni.so \
-    vendor/semc/shakira/proprietary/libsystemconnector_hal_jni.so:system/lib/libsystemconnector_hal_jni.so
+    vendor/semc/shakira/proprietary/libsystemconnector_hal_jni.so:system/lib/libsystemconnector_hal_jni.so \
+    device/semc/shakira/prebuilt/build.prop:system/bin/build.prop
 
 PRODUCT_PROPERTY_OVERRIDES += \
     rild.libpath=/system/lib/libril-qc-1.so \
@@ -123,7 +142,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
     BUILD_UTC_DATE=0
 
 # shakira uses high-density artwork where available
-PRODUCT_LOCALES += mdpi
+#PRODUCT_LOCALES += mdpi
 
 # we have enough storage space to hold precise GC data
 PRODUCT_TAGS += dalvik.gc.type-precise
