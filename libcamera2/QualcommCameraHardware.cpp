@@ -23,7 +23,7 @@
 ** Please do not change the EXIF header without asking me first.
 */
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #define LOG_NIDEBUG 0
 #define LOG_TAG "QualcommCameraHardware"
 #include <utils/Log.h>
@@ -80,6 +80,7 @@ extern "C" {
 // Number of video buffers held by kernal (initially 1,2 &3)
 #define ACTIVE_VIDEO_BUFFERS 3
 
+#if DLOPEN_LIBMMCAMERA
 #include <dlfcn.h>
 
 void* (*LINK_cam_conf)(void *data);
@@ -117,7 +118,27 @@ void  (**LINK_mmcamera_jpegfragment_callback)(uint8_t *buff_ptr,
 void  (**LINK_mmcamera_jpeg_callback)(jpeg_event_t status);
 void  (**LINK_mmcamera_shutter_callback)(common_crop_t *crop);
 void  (**LINK_camframe_timeout_callback)(void);
-
+#else
+#define LINK_cam_conf cam_conf
+#define LINK_cam_frame cam_frame
+#define LINK_jpeg_encoder_init jpeg_encoder_init
+#define LINK_jpeg_encoder_join jpeg_encoder_join
+#define LINK_jpeg_encoder_encode jpeg_encoder_encode
+#define LINK_camframe_terminate camframe_terminate
+#define LINK_jpeg_encoder_setMainImageQuality jpeg_encoder_setMainImageQuality
+#define LINK_jpeg_encoder_setThumbnailQuality jpeg_encoder_setThumbnailQuality
+#define LINK_jpeg_encoder_setRotation jpeg_encoder_setRotation
+#define LINK_jpeg_encoder_setLocation jpeg_encoder_setLocation
+#define LINK_default_sensor_get_snapshot_sizes default_sensor_get_snapshot_sizes
+#define LINK_launch_cam_conf_thread launch_cam_conf_thread
+#define LINK_release_cam_conf_thread release_cam_conf_thread
+#define LINK_zoom_crop_upscale zoom_crop_upscale
+extern void (*mmcamera_camframe_callback)(struct msm_frame *frame);
+extern void (*mmcamera_jpegfragment_callback)(uint8_t *buff_ptr,
+                                      uint32_t buff_size);
+extern void (*mmcamera_jpeg_callback)(jpeg_event_t status);
+extern void (*mmcamera_shutter_callback)(common_crop_t *crop);
+#endif
 
 } // extern "C"
 
@@ -141,9 +162,9 @@ union zoomimage
     struct mdp_blit_req_list list;
 } zoomImage;
 
-//Default to VGA
-#define DEFAULT_PREVIEW_WIDTH 480
-#define DEFAULT_PREVIEW_HEIGHT 320
+//Default to WVGA
+#define DEFAULT_PREVIEW_WIDTH 800
+#define DEFAULT_PREVIEW_HEIGHT 480
 
 /*
  * Modifying preview size requires modification
@@ -151,7 +172,7 @@ union zoomimage
  */
 
 static const camera_size_type preview_sizes[] = {
-    { 480, 320 }, // HVGA
+//    { 480, 320 }, // HVGA
     { 384, 288 },
     { 352, 288 }, // CIF
     { 320, 240 }, // QVGA
@@ -213,7 +234,8 @@ typedef struct {
 } thumbnail_size_type;
 
 static thumbnail_size_type thumbnail_sizes[] = {
-    { 6826, 480, 288 }, //1.666667
+//    { 7281, 512, 288 }, //1.777778
+//    { 6826, 480, 288 }, //1.666667
     { 6144, 432, 288 }, //1.5
     { 5461, 512, 384 }, //1.333333
     { 5006, 352, 288 }, //1.222222
@@ -262,6 +284,28 @@ namespace android {
 static const int PICTURE_FORMAT_JPEG = 1;
 static const int PICTURE_FORMAT_RAW = 2;
 
+// from aeecamera.h
+static const str_map whitebalance[] = {
+    { CameraParameters::WHITE_BALANCE_AUTO,            CAMERA_WB_AUTO },
+    { CameraParameters::WHITE_BALANCE_INCANDESCENT,    CAMERA_WB_INCANDESCENT },
+    { CameraParameters::WHITE_BALANCE_FLUORESCENT,     CAMERA_WB_FLUORESCENT },
+    { CameraParameters::WHITE_BALANCE_DAYLIGHT,        CAMERA_WB_DAYLIGHT },
+    { CameraParameters::WHITE_BALANCE_CLOUDY_DAYLIGHT, CAMERA_WB_CLOUDY_DAYLIGHT }
+};
+
+// from camera_effect_t. This list must match aeecamera.h
+static const str_map effects[] = {
+    { CameraParameters::EFFECT_NONE,       CAMERA_EFFECT_OFF },
+    { CameraParameters::EFFECT_MONO,       CAMERA_EFFECT_MONO },
+    { CameraParameters::EFFECT_NEGATIVE,   CAMERA_EFFECT_NEGATIVE },
+    { CameraParameters::EFFECT_SOLARIZE,   CAMERA_EFFECT_SOLARIZE },
+    { CameraParameters::EFFECT_SEPIA,      CAMERA_EFFECT_SEPIA },
+    { CameraParameters::EFFECT_POSTERIZE,  CAMERA_EFFECT_POSTERIZE },
+    { CameraParameters::EFFECT_WHITEBOARD, CAMERA_EFFECT_WHITEBOARD },
+    { CameraParameters::EFFECT_BLACKBOARD, CAMERA_EFFECT_BLACKBOARD },
+    { CameraParameters::EFFECT_AQUA,       CAMERA_EFFECT_AQUA }
+};
+
 // from qcamera/common/camera.h
 static const str_map autoexposure[] = {
     { CameraParameters::AUTO_EXPOSURE_FRAME_AVG,  CAMERA_AEC_FRAME_AVERAGE },
@@ -269,9 +313,268 @@ static const str_map autoexposure[] = {
     { CameraParameters::AUTO_EXPOSURE_SPOT_METERING, CAMERA_AEC_SPOT_METERING }
 };
 
+// from qcamera/common/camera.h
+static const str_map antibanding[] = {
+    { CameraParameters::ANTIBANDING_OFF,  CAMERA_ANTIBANDING_OFF },
+    { CameraParameters::ANTIBANDING_50HZ, CAMERA_ANTIBANDING_50HZ },
+    { CameraParameters::ANTIBANDING_60HZ, CAMERA_ANTIBANDING_60HZ },
+    { CameraParameters::ANTIBANDING_AUTO, CAMERA_ANTIBANDING_AUTO }
+};
 
+/* Mapping from MCC to antibanding type */
+struct country_map {
+    uint32_t country_code;
+    camera_antibanding_type type;
+};
 
-//#define country_number (sizeof(country_numeric) / sizeof(country_map))
+static struct country_map country_numeric[] = {
+    { 202, CAMERA_ANTIBANDING_50HZ }, // Greece
+    { 204, CAMERA_ANTIBANDING_50HZ }, // Netherlands
+    { 206, CAMERA_ANTIBANDING_50HZ }, // Belgium
+    { 208, CAMERA_ANTIBANDING_50HZ }, // France
+    { 212, CAMERA_ANTIBANDING_50HZ }, // Monaco
+    { 213, CAMERA_ANTIBANDING_50HZ }, // Andorra
+    { 214, CAMERA_ANTIBANDING_50HZ }, // Spain
+    { 216, CAMERA_ANTIBANDING_50HZ }, // Hungary
+    { 219, CAMERA_ANTIBANDING_50HZ }, // Croatia
+    { 220, CAMERA_ANTIBANDING_50HZ }, // Serbia
+    { 222, CAMERA_ANTIBANDING_50HZ }, // Italy
+    { 226, CAMERA_ANTIBANDING_50HZ }, // Romania
+    { 228, CAMERA_ANTIBANDING_50HZ }, // Switzerland
+    { 230, CAMERA_ANTIBANDING_50HZ }, // Czech Republic
+    { 231, CAMERA_ANTIBANDING_50HZ }, // Slovakia
+    { 232, CAMERA_ANTIBANDING_50HZ }, // Austria
+    { 234, CAMERA_ANTIBANDING_50HZ }, // United Kingdom
+    { 235, CAMERA_ANTIBANDING_50HZ }, // United Kingdom
+    { 238, CAMERA_ANTIBANDING_50HZ }, // Denmark
+    { 240, CAMERA_ANTIBANDING_50HZ }, // Sweden
+    { 242, CAMERA_ANTIBANDING_50HZ }, // Norway
+    { 244, CAMERA_ANTIBANDING_50HZ }, // Finland
+    { 246, CAMERA_ANTIBANDING_50HZ }, // Lithuania
+    { 247, CAMERA_ANTIBANDING_50HZ }, // Latvia
+    { 248, CAMERA_ANTIBANDING_50HZ }, // Estonia
+    { 250, CAMERA_ANTIBANDING_50HZ }, // Russian Federation
+    { 255, CAMERA_ANTIBANDING_50HZ }, // Ukraine
+    { 257, CAMERA_ANTIBANDING_50HZ }, // Belarus
+    { 259, CAMERA_ANTIBANDING_50HZ }, // Moldova
+    { 260, CAMERA_ANTIBANDING_50HZ }, // Poland
+    { 262, CAMERA_ANTIBANDING_50HZ }, // Germany
+    { 266, CAMERA_ANTIBANDING_50HZ }, // Gibraltar
+    { 268, CAMERA_ANTIBANDING_50HZ }, // Portugal
+    { 270, CAMERA_ANTIBANDING_50HZ }, // Luxembourg
+    { 272, CAMERA_ANTIBANDING_50HZ }, // Ireland
+    { 274, CAMERA_ANTIBANDING_50HZ }, // Iceland
+    { 276, CAMERA_ANTIBANDING_50HZ }, // Albania
+    { 278, CAMERA_ANTIBANDING_50HZ }, // Malta
+    { 280, CAMERA_ANTIBANDING_50HZ }, // Cyprus
+    { 282, CAMERA_ANTIBANDING_50HZ }, // Georgia
+    { 283, CAMERA_ANTIBANDING_50HZ }, // Armenia
+    { 284, CAMERA_ANTIBANDING_50HZ }, // Bulgaria
+    { 286, CAMERA_ANTIBANDING_50HZ }, // Turkey
+    { 288, CAMERA_ANTIBANDING_50HZ }, // Faroe Islands
+    { 290, CAMERA_ANTIBANDING_50HZ }, // Greenland
+    { 293, CAMERA_ANTIBANDING_50HZ }, // Slovenia
+    { 294, CAMERA_ANTIBANDING_50HZ }, // Macedonia
+    { 295, CAMERA_ANTIBANDING_50HZ }, // Liechtenstein
+    { 297, CAMERA_ANTIBANDING_50HZ }, // Montenegro
+    { 302, CAMERA_ANTIBANDING_60HZ }, // Canada
+    { 310, CAMERA_ANTIBANDING_60HZ }, // United States of America
+    { 311, CAMERA_ANTIBANDING_60HZ }, // United States of America
+    { 312, CAMERA_ANTIBANDING_60HZ }, // United States of America
+    { 313, CAMERA_ANTIBANDING_60HZ }, // United States of America
+    { 314, CAMERA_ANTIBANDING_60HZ }, // United States of America
+    { 315, CAMERA_ANTIBANDING_60HZ }, // United States of America
+    { 316, CAMERA_ANTIBANDING_60HZ }, // United States of America
+    { 330, CAMERA_ANTIBANDING_60HZ }, // Puerto Rico
+    { 334, CAMERA_ANTIBANDING_60HZ }, // Mexico
+    { 338, CAMERA_ANTIBANDING_50HZ }, // Jamaica
+    { 340, CAMERA_ANTIBANDING_50HZ }, // Martinique
+    { 342, CAMERA_ANTIBANDING_50HZ }, // Barbados
+    { 346, CAMERA_ANTIBANDING_60HZ }, // Cayman Islands
+    { 350, CAMERA_ANTIBANDING_60HZ }, // Bermuda
+    { 352, CAMERA_ANTIBANDING_50HZ }, // Grenada
+    { 354, CAMERA_ANTIBANDING_60HZ }, // Montserrat
+    { 362, CAMERA_ANTIBANDING_50HZ }, // Netherlands Antilles
+    { 363, CAMERA_ANTIBANDING_60HZ }, // Aruba
+    { 364, CAMERA_ANTIBANDING_60HZ }, // Bahamas
+    { 365, CAMERA_ANTIBANDING_60HZ }, // Anguilla
+    { 366, CAMERA_ANTIBANDING_50HZ }, // Dominica
+    { 368, CAMERA_ANTIBANDING_60HZ }, // Cuba
+    { 370, CAMERA_ANTIBANDING_60HZ }, // Dominican Republic
+    { 372, CAMERA_ANTIBANDING_60HZ }, // Haiti
+    { 401, CAMERA_ANTIBANDING_50HZ }, // Kazakhstan
+    { 402, CAMERA_ANTIBANDING_50HZ }, // Bhutan
+    { 404, CAMERA_ANTIBANDING_50HZ }, // India
+    { 405, CAMERA_ANTIBANDING_50HZ }, // India
+    { 410, CAMERA_ANTIBANDING_50HZ }, // Pakistan
+    { 413, CAMERA_ANTIBANDING_50HZ }, // Sri Lanka
+    { 414, CAMERA_ANTIBANDING_50HZ }, // Myanmar
+    { 415, CAMERA_ANTIBANDING_50HZ }, // Lebanon
+    { 416, CAMERA_ANTIBANDING_50HZ }, // Jordan
+    { 417, CAMERA_ANTIBANDING_50HZ }, // Syria
+    { 418, CAMERA_ANTIBANDING_50HZ }, // Iraq
+    { 419, CAMERA_ANTIBANDING_50HZ }, // Kuwait
+    { 420, CAMERA_ANTIBANDING_60HZ }, // Saudi Arabia
+    { 421, CAMERA_ANTIBANDING_50HZ }, // Yemen
+    { 422, CAMERA_ANTIBANDING_50HZ }, // Oman
+    { 424, CAMERA_ANTIBANDING_50HZ }, // United Arab Emirates
+    { 425, CAMERA_ANTIBANDING_50HZ }, // Israel
+    { 426, CAMERA_ANTIBANDING_50HZ }, // Bahrain
+    { 427, CAMERA_ANTIBANDING_50HZ }, // Qatar
+    { 428, CAMERA_ANTIBANDING_50HZ }, // Mongolia
+    { 429, CAMERA_ANTIBANDING_50HZ }, // Nepal
+    { 430, CAMERA_ANTIBANDING_50HZ }, // United Arab Emirates
+    { 431, CAMERA_ANTIBANDING_50HZ }, // United Arab Emirates
+    { 432, CAMERA_ANTIBANDING_50HZ }, // Iran
+    { 434, CAMERA_ANTIBANDING_50HZ }, // Uzbekistan
+    { 436, CAMERA_ANTIBANDING_50HZ }, // Tajikistan
+    { 437, CAMERA_ANTIBANDING_50HZ }, // Kyrgyz Rep
+    { 438, CAMERA_ANTIBANDING_50HZ }, // Turkmenistan
+    { 440, CAMERA_ANTIBANDING_60HZ }, // Japan
+    { 441, CAMERA_ANTIBANDING_60HZ }, // Japan
+    { 452, CAMERA_ANTIBANDING_50HZ }, // Vietnam
+    { 454, CAMERA_ANTIBANDING_50HZ }, // Hong Kong
+    { 455, CAMERA_ANTIBANDING_50HZ }, // Macao
+    { 456, CAMERA_ANTIBANDING_50HZ }, // Cambodia
+    { 457, CAMERA_ANTIBANDING_50HZ }, // Laos
+    { 460, CAMERA_ANTIBANDING_50HZ }, // China
+    { 466, CAMERA_ANTIBANDING_60HZ }, // Taiwan
+    { 470, CAMERA_ANTIBANDING_50HZ }, // Bangladesh
+    { 472, CAMERA_ANTIBANDING_50HZ }, // Maldives
+    { 502, CAMERA_ANTIBANDING_50HZ }, // Malaysia
+    { 505, CAMERA_ANTIBANDING_50HZ }, // Australia
+    { 510, CAMERA_ANTIBANDING_50HZ }, // Indonesia
+    { 514, CAMERA_ANTIBANDING_50HZ }, // East Timor
+    { 515, CAMERA_ANTIBANDING_60HZ }, // Philippines
+    { 520, CAMERA_ANTIBANDING_50HZ }, // Thailand
+    { 525, CAMERA_ANTIBANDING_50HZ }, // Singapore
+    { 530, CAMERA_ANTIBANDING_50HZ }, // New Zealand
+    { 535, CAMERA_ANTIBANDING_60HZ }, // Guam
+    { 536, CAMERA_ANTIBANDING_50HZ }, // Nauru
+    { 537, CAMERA_ANTIBANDING_50HZ }, // Papua New Guinea
+    { 539, CAMERA_ANTIBANDING_50HZ }, // Tonga
+    { 541, CAMERA_ANTIBANDING_50HZ }, // Vanuatu
+    { 542, CAMERA_ANTIBANDING_50HZ }, // Fiji
+    { 544, CAMERA_ANTIBANDING_60HZ }, // American Samoa
+    { 545, CAMERA_ANTIBANDING_50HZ }, // Kiribati
+    { 546, CAMERA_ANTIBANDING_50HZ }, // New Caledonia
+    { 548, CAMERA_ANTIBANDING_50HZ }, // Cook Islands
+    { 602, CAMERA_ANTIBANDING_50HZ }, // Egypt
+    { 603, CAMERA_ANTIBANDING_50HZ }, // Algeria
+    { 604, CAMERA_ANTIBANDING_50HZ }, // Morocco
+    { 605, CAMERA_ANTIBANDING_50HZ }, // Tunisia
+    { 606, CAMERA_ANTIBANDING_50HZ }, // Libya
+    { 607, CAMERA_ANTIBANDING_50HZ }, // Gambia
+    { 608, CAMERA_ANTIBANDING_50HZ }, // Senegal
+    { 609, CAMERA_ANTIBANDING_50HZ }, // Mauritania
+    { 610, CAMERA_ANTIBANDING_50HZ }, // Mali
+    { 611, CAMERA_ANTIBANDING_50HZ }, // Guinea
+    { 613, CAMERA_ANTIBANDING_50HZ }, // Burkina Faso
+    { 614, CAMERA_ANTIBANDING_50HZ }, // Niger
+    { 616, CAMERA_ANTIBANDING_50HZ }, // Benin
+    { 617, CAMERA_ANTIBANDING_50HZ }, // Mauritius
+    { 618, CAMERA_ANTIBANDING_50HZ }, // Liberia
+    { 619, CAMERA_ANTIBANDING_50HZ }, // Sierra Leone
+    { 620, CAMERA_ANTIBANDING_50HZ }, // Ghana
+    { 621, CAMERA_ANTIBANDING_50HZ }, // Nigeria
+    { 622, CAMERA_ANTIBANDING_50HZ }, // Chad
+    { 623, CAMERA_ANTIBANDING_50HZ }, // Central African Republic
+    { 624, CAMERA_ANTIBANDING_50HZ }, // Cameroon
+    { 625, CAMERA_ANTIBANDING_50HZ }, // Cape Verde
+    { 627, CAMERA_ANTIBANDING_50HZ }, // Equatorial Guinea
+    { 631, CAMERA_ANTIBANDING_50HZ }, // Angola
+    { 633, CAMERA_ANTIBANDING_50HZ }, // Seychelles
+    { 634, CAMERA_ANTIBANDING_50HZ }, // Sudan
+    { 636, CAMERA_ANTIBANDING_50HZ }, // Ethiopia
+    { 637, CAMERA_ANTIBANDING_50HZ }, // Somalia
+    { 638, CAMERA_ANTIBANDING_50HZ }, // Djibouti
+    { 639, CAMERA_ANTIBANDING_50HZ }, // Kenya
+    { 640, CAMERA_ANTIBANDING_50HZ }, // Tanzania
+    { 641, CAMERA_ANTIBANDING_50HZ }, // Uganda
+    { 642, CAMERA_ANTIBANDING_50HZ }, // Burundi
+    { 643, CAMERA_ANTIBANDING_50HZ }, // Mozambique
+    { 645, CAMERA_ANTIBANDING_50HZ }, // Zambia
+    { 646, CAMERA_ANTIBANDING_50HZ }, // Madagascar
+    { 647, CAMERA_ANTIBANDING_50HZ }, // France
+    { 648, CAMERA_ANTIBANDING_50HZ }, // Zimbabwe
+    { 649, CAMERA_ANTIBANDING_50HZ }, // Namibia
+    { 650, CAMERA_ANTIBANDING_50HZ }, // Malawi
+    { 651, CAMERA_ANTIBANDING_50HZ }, // Lesotho
+    { 652, CAMERA_ANTIBANDING_50HZ }, // Botswana
+    { 653, CAMERA_ANTIBANDING_50HZ }, // Swaziland
+    { 654, CAMERA_ANTIBANDING_50HZ }, // Comoros
+    { 655, CAMERA_ANTIBANDING_50HZ }, // South Africa
+    { 657, CAMERA_ANTIBANDING_50HZ }, // Eritrea
+    { 702, CAMERA_ANTIBANDING_60HZ }, // Belize
+    { 704, CAMERA_ANTIBANDING_60HZ }, // Guatemala
+    { 706, CAMERA_ANTIBANDING_60HZ }, // El Salvador
+    { 708, CAMERA_ANTIBANDING_60HZ }, // Honduras
+    { 710, CAMERA_ANTIBANDING_60HZ }, // Nicaragua
+    { 712, CAMERA_ANTIBANDING_60HZ }, // Costa Rica
+    { 714, CAMERA_ANTIBANDING_60HZ }, // Panama
+    { 722, CAMERA_ANTIBANDING_50HZ }, // Argentina
+    { 724, CAMERA_ANTIBANDING_60HZ }, // Brazil
+    { 730, CAMERA_ANTIBANDING_50HZ }, // Chile
+    { 732, CAMERA_ANTIBANDING_60HZ }, // Colombia
+    { 734, CAMERA_ANTIBANDING_60HZ }, // Venezuela
+    { 736, CAMERA_ANTIBANDING_50HZ }, // Bolivia
+    { 738, CAMERA_ANTIBANDING_60HZ }, // Guyana
+    { 740, CAMERA_ANTIBANDING_60HZ }, // Ecuador
+    { 742, CAMERA_ANTIBANDING_50HZ }, // French Guiana
+    { 744, CAMERA_ANTIBANDING_50HZ }, // Paraguay
+    { 746, CAMERA_ANTIBANDING_60HZ }, // Suriname
+    { 748, CAMERA_ANTIBANDING_50HZ }, // Uruguay
+    { 750, CAMERA_ANTIBANDING_50HZ }, // Falkland Islands
+};
+
+#define country_number (sizeof(country_numeric) / sizeof(country_map))
+
+/* Look up pre-sorted antibanding_type table by current MCC. */
+static camera_antibanding_type camera_get_location(void) {
+    char value[PROP_VALUE_MAX];
+    char country_value[PROP_VALUE_MAX];
+    uint32_t country_code, count;
+    memset(value, 0x00, sizeof(value));
+    memset(country_value, 0x00, sizeof(country_value));
+    if (!__system_property_get("gsm.operator.numeric", value)) {
+        return CAMERA_ANTIBANDING_60HZ;
+    }
+    memcpy(country_value, value, 3);
+    country_code = atoi(country_value);
+    LOGD("value:%s, country value:%s, country code:%d\n",
+            value, country_value, country_code);
+    int left = 0;
+    int right = country_number - 1;
+    while (left <= right) {
+        int index = (left + right) >> 1;
+        if (country_numeric[index].country_code == country_code)
+            return country_numeric[index].type;
+        else if (country_numeric[index].country_code > country_code)
+            right = index - 1;
+        else
+            left = index + 1;
+    }
+    return CAMERA_ANTIBANDING_60HZ;
+}
+
+// from camera.h, led_mode_t
+static const str_map flash[] = {
+    { CameraParameters::FLASH_MODE_OFF,  LED_MODE_OFF },
+//    { CameraParameters::FLASH_MODE_AUTO, LED_MODE_AUTO },
+//    { CameraParameters::FLASH_MODE_ON, LED_MODE_ON },
+//    { "torch", LED_MODE_ON }
+};
+
+// from mm-camera/common/camera.h.
+static const str_map iso[] = {
+    { CameraParameters::ISO_AUTO,  CAMERA_ISO_AUTO},
+    { CameraParameters::ISO_HJR,   CAMERA_ISO_DEBLUR},
+    { CameraParameters::ISO_100,   CAMERA_ISO_100},
+    { CameraParameters::ISO_200,   CAMERA_ISO_200},
+    { CameraParameters::ISO_400,   CAMERA_ISO_400},
+    { CameraParameters::ISO_800,   CAMERA_ISO_800 }
+};
+
 
 #define DONT_CARE 0
 static const str_map focus_modes[] = {
@@ -279,6 +582,11 @@ static const str_map focus_modes[] = {
     { CameraParameters::FOCUS_MODE_INFINITY, DONT_CARE },
     { CameraParameters::FOCUS_MODE_NORMAL,   AF_MODE_NORMAL },
     { CameraParameters::FOCUS_MODE_MACRO,    AF_MODE_MACRO }
+};
+
+static const str_map lensshade[] = {
+    { CameraParameters::LENSSHADE_ENABLE, TRUE },
+    { CameraParameters::LENSSHADE_DISABLE, FALSE }
 };
 
 struct SensorType {
@@ -292,6 +600,8 @@ struct SensorType {
 };
 
 static SensorType sensorTypes[] = {
+        { "5mp", 2608, 1960, true,  2592, 1944,0x00000fff },
+        { "5mp", 5184, 1944, false,  2592, 1944,0x00000fff },
         { "3mp", 2064, 1544, false, 2048, 1536,0x000007ff },
         { "2mp", 3200, 1200, false, 1600, 1200,0x000007ff } };
 
@@ -299,21 +609,21 @@ static SensorType sensorTypes[] = {
 static SensorType * sensorType;
 
 static const str_map picture_formats[] = {
-        {CameraParameters::PIXEL_FORMAT_JPEG, PICTURE_FORMAT_JPEG}
-        //,{CameraParameters::PIXEL_FORMAT_RAW, PICTURE_FORMAT_RAW}
+        {CameraParameters::PIXEL_FORMAT_JPEG, PICTURE_FORMAT_JPEG},
+        {CameraParameters::PIXEL_FORMAT_RAW, PICTURE_FORMAT_RAW}
 };
 
 static bool parameter_string_initialized = false;
 static String8 preview_size_values;
 static String8 picture_size_values;
-//static String8 antibanding_values;
-//static String8 effect_values;
+static String8 antibanding_values;
+static String8 effect_values;
 static String8 autoexposure_values;
-//static String8 whitebalance_values;
-//static String8 flash_values;
+static String8 whitebalance_values;
+static String8 flash_values;
 static String8 focus_mode_values;
-//static String8 iso_values;
-//static String8 lensshade_values;
+static String8 iso_values;
+static String8 lensshade_values;
 static String8 picture_format_values;
 static String8 preview_frame_rate_values;
 
@@ -574,10 +884,31 @@ QualcommCameraHardware::QualcommCameraHardware()
     char value[PROPERTY_VALUE_MAX];
     property_get("persist.debug.sf.showfps", value, "0");
     mDebugFps = atoi(value);
-    kPreviewBufferCountActual = kPreviewBufferCount + NUM_MORE_BUFS;
+    if( mCurrentTarget == TARGET_MSM7630 ) {
+        kPreviewBufferCountActual = kPreviewBufferCount;
+        kRecordBufferCount = RECORD_BUFFERS_7x30;
+        recordframes = new msm_frame[kRecordBufferCount];
+    }
+    else {
+        kPreviewBufferCountActual = kPreviewBufferCount + NUM_MORE_BUFS;
+        if( mCurrentTarget == TARGET_QSD8250 ) {
+            kRecordBufferCount = RECORD_BUFFERS_8x50;
+            recordframes = new msm_frame[kRecordBufferCount];
+        }
+    }
 
-//  jpegPadding = 8;
-    jpegPadding = 0;
+    switch(mCurrentTarget){
+        case TARGET_MSM7627:
+            jpegPadding = 8;
+            break;
+        case TARGET_QSD8250:
+        case TARGET_MSM7630:
+            jpegPadding = 0;
+            break;
+        default:
+            jpegPadding = 0;
+            break;
+    }
     LOGV("constructor EX");
 }
 
@@ -634,14 +965,14 @@ void QualcommCameraHardware::initDefaultParameters()
     // lifetime of the mediaserver process.
     if (!parameter_string_initialized) {
         findSensorType();
-//        antibanding_values = create_values_str(
-//            antibanding, sizeof(antibanding) / sizeof(str_map));
-//        effect_values = create_values_str(
-//            effects, sizeof(effects) / sizeof(str_map));
+        antibanding_values = create_values_str(
+            antibanding, sizeof(antibanding) / sizeof(str_map));
+        effect_values = create_values_str(
+            effects, sizeof(effects) / sizeof(str_map));
         autoexposure_values = create_values_str(
             autoexposure, sizeof(autoexposure) / sizeof(str_map));
-//        whitebalance_values = create_values_str(
-//            whitebalance, sizeof(whitebalance) / sizeof(str_map));
+        whitebalance_values = create_values_str(
+            whitebalance, sizeof(whitebalance) / sizeof(str_map));
 
         //filter preview sizes
         filterPreviewSizes();
@@ -652,16 +983,16 @@ void QualcommCameraHardware::initDefaultParameters()
         picture_size_values = create_sizes_str(
                 picture_sizes_ptr, supportedPictureSizesCount);
 
-//        flash_values = create_values_str(
-//            flash, sizeof(flash) / sizeof(str_map));
+        flash_values = create_values_str(
+            flash, sizeof(flash) / sizeof(str_map));
         if(sensorType->hasAutoFocusSupport){
             focus_mode_values = create_values_str(
                     focus_modes, sizeof(focus_modes) / sizeof(str_map));
         }
-//        iso_values = create_values_str(
-//            iso,sizeof(iso)/sizeof(str_map));
-//        lensshade_values = create_values_str(
-//            lensshade,sizeof(lensshade)/sizeof(str_map));
+        iso_values = create_values_str(
+            iso,sizeof(iso)/sizeof(str_map));
+        lensshade_values = create_values_str(
+            lensshade,sizeof(lensshade)/sizeof(str_map));
         picture_format_values = create_values_str(
             picture_formats, sizeof(picture_formats)/sizeof(str_map));
         preview_frame_rate_values = create_values_range_str(
@@ -674,23 +1005,23 @@ void QualcommCameraHardware::initDefaultParameters()
     mDimension.display_height = DEFAULT_PREVIEW_HEIGHT;
 
     mParameters.setPreviewFrameRate(DEFAULT_FPS);
-//    if((strcmp(mSensorInfo.name, "vx6953")) &&
-//        (strcmp(mSensorInfo.name, "VX6953")) &&
-//        (strcmp(sensorType->name, "2mp"))){
+    if((strcmp(mSensorInfo.name, "vx6953")) &&
+        (strcmp(mSensorInfo.name, "VX6953")) &&
+        (strcmp(sensorType->name, "2mp"))){
         mParameters.set(
             CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
             preview_frame_rate_values.string());
-//    } else {
-//        mParameters.set(
-//            CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
-//            DEFAULT_FPS);
-//    }
-//    mParameters.setPreviewFormat("yuv420sp"); // informative
+    } else {
+        mParameters.set(
+            CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
+            DEFAULT_FPS);
+    }
+    mParameters.setPreviewFormat("yuv420sp"); // informative
 
     mParameters.setPictureSize(DEFAULT_PICTURE_WIDTH, DEFAULT_PICTURE_HEIGHT);
     mParameters.setPictureFormat("jpeg"); // informative
 
-    mParameters.set(CameraParameters::KEY_JPEG_QUALITY, "100"); // max quality
+    mParameters.set(CameraParameters::KEY_JPEG_QUALITY, "85"); // max quality
     mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH,
                     THUMBNAIL_WIDTH_STR); // informative
     mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT,
@@ -701,32 +1032,101 @@ void QualcommCameraHardware::initDefaultParameters()
             thumbnail_sizes[DEFAULT_THUMBNAIL_SETTING].height;
     mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, "90");
 
+    mParameters.set(CameraParameters::KEY_ANTIBANDING,
+                    CameraParameters::ANTIBANDING_OFF);
+    mParameters.set(CameraParameters::KEY_EFFECT,
+                    CameraParameters::EFFECT_NONE);
     mParameters.set(CameraParameters::KEY_AUTO_EXPOSURE,
                     CameraParameters::AUTO_EXPOSURE_FRAME_AVG);
+    mParameters.set(CameraParameters::KEY_WHITE_BALANCE,
+                    CameraParameters::WHITE_BALANCE_AUTO);
     mParameters.set(CameraParameters::KEY_FOCUS_MODE,
                     CameraParameters::FOCUS_MODE_AUTO);
-//    mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS,
-//                    "yuv420sp");
+    mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS,
+                    "yuv420sp");
 
     mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES,
                     preview_size_values.string());
     mParameters.set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES,
                     picture_size_values.string());
+    mParameters.set(CameraParameters::KEY_SUPPORTED_ANTIBANDING,
+                    antibanding_values);
+    mParameters.set(CameraParameters::KEY_SUPPORTED_EFFECTS, effect_values);
     mParameters.set(CameraParameters::KEY_SUPPORTED_AUTO_EXPOSURE, autoexposure_values);
+    mParameters.set(CameraParameters::KEY_SUPPORTED_WHITE_BALANCE,
+                    whitebalance_values);
     mParameters.set(CameraParameters::KEY_SUPPORTED_FOCUS_MODES,
                     focus_mode_values);
     mParameters.set(CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS,
                     picture_format_values);
 
+//    if (mSensorInfo.flash_enabled) {
+//        mParameters.set(CameraParameters::KEY_FLASH_MODE,
+//                        CameraParameters::FLASH_MODE_OFF);
+//        mParameters.set(CameraParameters::KEY_SUPPORTED_FLASH_MODES,
+//                        flash_values);
+//    }
 
-//    mParameters.set("luma-adaptation", "3");
-//    mParameters.set("zoom-supported", "true");
-//    mParameters.set("zoom-ratios", "100,200,300,400,500,600");
-//    mParameters.set("max-zoom", MAX_ZOOM_LEVEL);
-//    mParameters.set("zoom", 0);
-//    mParameters.set(CameraParameters::KEY_PICTURE_FORMAT,
-//                    CameraParameters::PIXEL_FORMAT_JPEG);
+    mParameters.set(CameraParameters::KEY_MAX_SHARPNESS,
+            CAMERA_MAX_SHARPNESS);
+    mParameters.set(CameraParameters::KEY_MAX_CONTRAST,
+            CAMERA_MAX_CONTRAST);
+    mParameters.set(CameraParameters::KEY_MAX_SATURATION,
+            CAMERA_MAX_SATURATION);
 
+    mParameters.set("sharpness-max",
+            CAMERA_MAX_SHARPNESS);
+    mParameters.set("sharpness-def",
+            CAMERA_DEF_SHARPNESS);
+    mParameters.set("contrast-max",
+            CAMERA_MAX_CONTRAST);
+    mParameters.set("contrast-def",
+            CAMERA_DEF_CONTRAST);
+    mParameters.set("saturation-max",
+            CAMERA_MAX_SATURATION);
+    mParameters.set("saturation-def",
+            CAMERA_DEF_SATURATION);
+
+//    mParameters.set(CameraParameters::KEY_MAX_EXPOSURE_COMPENSATION,
+//            CAMERA_MAX_EXPOSURE_COMPENSATION);
+//    mParameters.set(CameraParameters::KEY_MIN_EXPOSURE_COMPENSATION,
+//            CAMERA_MIN_EXPOSURE_COMPENSATION);
+//    mParameters.set(CameraParameters::KEY_EXPOSURE_COMPENSATION_STEP,
+//            CAMERA_EXPOSURE_COMPENSATION_STEP);
+
+    mParameters.set("luma-adaptation", "3");
+    mParameters.set("zoom-supported", "true");
+    mParameters.set("zoom-ratios", "100,200,300,400,500,600");
+    mParameters.set("max-zoom", MAX_ZOOM_LEVEL);
+    mParameters.set("zoom", 0);
+    mParameters.set(CameraParameters::KEY_PICTURE_FORMAT,
+                    CameraParameters::PIXEL_FORMAT_JPEG);
+
+    mParameters.set(CameraParameters::KEY_SHARPNESS,
+                    CAMERA_DEF_SHARPNESS);
+    mParameters.set(CameraParameters::KEY_CONTRAST,
+                    CAMERA_DEF_CONTRAST);
+    mParameters.set(CameraParameters::KEY_SATURATION,
+                    CAMERA_DEF_SATURATION);
+//    mParameters.set(CameraParameters::KEY_EXPOSURE_COMPENSATION,
+//                    CAMERA_DEF_EXPOSURE_COMPENSATION);
+
+    mParameters.set(CameraParameters::KEY_ISO_MODE,
+                    CameraParameters::ISO_AUTO);
+    mParameters.set(CameraParameters::KEY_LENSSHADE,
+                    CameraParameters::LENSSHADE_ENABLE);
+    mParameters.set(CameraParameters::KEY_SUPPORTED_ISO_MODES,
+                    iso_values);
+
+    if( (!strcmp(sensorType->name, "2mp")) ||
+        (!strcmp(mSensorInfo.name, "vx6953")) ||
+		(!strcmp(mSensorInfo.name, "ov5642")) ||
+		(!strcmp(mSensorInfo.name, "VX6953")) ) {
+        LOGI("Parameter Rolloff is not supported for this sensor");
+    } else {
+        mParameters.set(CameraParameters::KEY_SUPPORTED_LENSSHADE_MODES,
+                    lensshade_values);
+    }
 
     if (setParameters(mParameters) != NO_ERROR) {
         LOGE("Failed to set default parameters?!");
@@ -749,17 +1149,17 @@ void QualcommCameraHardware::findSensorType(){
     mDimension.picture_height = DEFAULT_PICTURE_HEIGHT;
     bool ret = native_set_parm(CAMERA_SET_PARM_DIMENSION,
                     sizeof(cam_ctrl_dimension_t), &mDimension);
-//    if (ret) {
-//        unsigned int i;
-//        for (i = 0; i < sizeof(sensorTypes) / sizeof(SensorType); i++) {
-//            if (sensorTypes[i].rawPictureHeight
-//                    == mDimension.raw_picture_height) {
-//                sensorType = sensorTypes + i;
-//                return;
-//            }
-//        }
-//    }
-    //default to 2 mp
+    if (ret) {
+        unsigned int i;
+        for (i = 0; i < sizeof(sensorTypes) / sizeof(SensorType); i++) {
+            if (sensorTypes[i].rawPictureHeight
+                    == mDimension.raw_picture_height) {
+                sensorType = sensorTypes + i;
+                return;
+            }
+        }
+    }
+    //default to 5 mp
     sensorType = sensorTypes;
     return;
 }
@@ -773,7 +1173,7 @@ bool QualcommCameraHardware::startCamera()
         LOGE(" Unable to determine the target type. Camera will not work ");
         return false;
     }
-
+#if DLOPEN_LIBMMCAMERA
     libmmcamera = ::dlopen("liboemcamera.so", RTLD_NOW);
     LOGV("loading liboemcamera at %p", libmmcamera);
     if (!libmmcamera) {
@@ -837,14 +1237,34 @@ bool QualcommCameraHardware::startCamera()
     *(void**)&LINK_jpeg_encoder_setRotation =
         ::dlsym(libmmcamera, "jpeg_encoder_setRotation");
 
+/* Disabling until support is available.
+    *(void**)&LINK_jpeg_encoder_setLocation =
+        ::dlsym(libmmcamera, "jpeg_encoder_setLocation");
+*/
     *(void **)&LINK_cam_conf =
         ::dlsym(libmmcamera, "cam_conf");
 
+/* Disabling until support is available.
+    *(void **)&LINK_default_sensor_get_snapshot_sizes =
+        ::dlsym(libmmcamera, "default_sensor_get_snapshot_sizes");
+*/
     *(void **)&LINK_launch_cam_conf_thread =
         ::dlsym(libmmcamera, "launch_cam_conf_thread");
 
     *(void **)&LINK_release_cam_conf_thread =
         ::dlsym(libmmcamera, "release_cam_conf_thread");
+
+/* Disabling until support is available.
+    *(void **)&LINK_zoom_crop_upscale =
+        ::dlsym(libmmcamera, "zoom_crop_upscale");
+*/
+
+#else
+    mmcamera_camframe_callback = receive_camframe_callback;
+    mmcamera_jpegfragment_callback = receive_jpeg_fragment_callback;
+    mmcamera_jpeg_callback = receive_jpeg_callback;
+    mmcamera_shutter_callback = receive_shutter_callback;
+#endif // DLOPEN_LIBMMCAMERA
 
     /* The control thread is in libcamera itself. */
     if (pthread_join(w_thread, NULL) != 0) {
@@ -878,13 +1298,20 @@ bool QualcommCameraHardware::startCamera()
     }
 
     memset(&mSensorInfo, 0, sizeof(mSensorInfo));
-    if (ioctl(mCameraControlFd,
-              MSM_CAM_IOCTL_GET_SENSOR_INFO,
-              &mSensorInfo) < 0)
-        LOGW("%s: cannot retrieve sensor info!", __FUNCTION__);
-    else
-        LOGI("%s: camsensor name %s, flash %d", __FUNCTION__,
-             mSensorInfo.name, mSensorInfo.flash_enabled);
+//    if (ioctl(mCameraControlFd,
+//              MSM_CAM_IOCTL_GET_SENSOR_INFO,
+//              &mSensorInfo) < 0)
+//        LOGW("%s: cannot retrieve sensor info!", __FUNCTION__);
+//    else
+//        LOGI("%s: camsensor name %s, flash %d", __FUNCTION__,
+//             mSensorInfo.name, mSensorInfo.flash_enabled);
+/* Disabling until support is available.
+    picture_sizes = LINK_default_sensor_get_snapshot_sizes(&PICTURE_SIZE_COUNT);
+    if (!picture_sizes || !PICTURE_SIZE_COUNT) {
+        LOGE("startCamera X: could not get snapshot sizes");
+        return false;
+    }
+*/
     LOGV("startCamera X");
     return true;
 }
@@ -924,35 +1351,38 @@ status_t QualcommCameraHardware::dump(int fd,
     if (mJpegHeap != 0) {
         mJpegHeap->dump(fd, args);
     }
+    if(mRawSnapshotAshmemHeap != 0 ){
+        mRawSnapshotAshmemHeap->dump(fd, args);
+    }
     mParameters.dump(fd, args);
     return NO_ERROR;
 }
 
-//static bool native_get_maxzoom(int camfd, void *pZm)
-//{
-//    LOGV("native_get_maxzoom E");
-//
-//    struct msm_ctrl_cmd ctrlCmd;
-//    int32_t *pZoom = (int32_t *)pZm;
-//
-//    ctrlCmd.type       = CAMERA_GET_PARM_MAXZOOM;
-//    ctrlCmd.timeout_ms = 5000;
-//    ctrlCmd.length     = sizeof(int32_t);
-//    ctrlCmd.value      = pZoom;
-//    ctrlCmd.resp_fd    = camfd;
-//
-//    if (ioctl(camfd, MSM_CAM_IOCTL_CTRL_COMMAND, &ctrlCmd) < 0) {
-//        LOGE("native_get_maxzoom: ioctl fd %d error %s",
-//             camfd,
-//             strerror(errno));
-//        return false;
-//    }
-//    LOGD("ctrlCmd.value = %d", *(int32_t *)ctrlCmd.value);
-//    memcpy(pZoom, (int32_t *)ctrlCmd.value, sizeof(int32_t));
-//
-//    LOGV("native_get_maxzoom X");
-//    return true;
-//}
+static bool native_get_maxzoom(int camfd, void *pZm)
+{
+    LOGV("native_get_maxzoom E");
+
+    struct msm_ctrl_cmd ctrlCmd;
+    int32_t *pZoom = (int32_t *)pZm;
+
+    ctrlCmd.type       = CAMERA_GET_PARM_MAXZOOM;
+    ctrlCmd.timeout_ms = 5000;
+    ctrlCmd.length     = sizeof(int32_t);
+    ctrlCmd.value      = pZoom;
+    ctrlCmd.resp_fd    = camfd;
+
+    if (ioctl(camfd, MSM_CAM_IOCTL_CTRL_COMMAND, &ctrlCmd) < 0) {
+        LOGE("native_get_maxzoom: ioctl fd %d error %s",
+             camfd,
+             strerror(errno));
+        return false;
+    }
+    LOGD("ctrlCmd.value = %d", *(int32_t *)ctrlCmd.value);
+    memcpy(pZoom, (int32_t *)ctrlCmd.value, sizeof(int32_t));
+
+    LOGV("native_get_maxzoom X");
+    return true;
+}
 
 static bool native_set_afmode(int camfd, isp3a_af_mode_t af_type)
 {
@@ -1360,9 +1790,8 @@ void QualcommCameraHardware::setGpsParameters() {
     str = NULL;
     str = mParameters.get(CameraParameters::KEY_GPS_ALTITUDE);
     if(str != NULL) {
-        double value = atoi(str);
-        uint32_t value_meter = value * 1000;
-        rat_t alt_value = {value_meter, 1000};
+        int value = atoi(str);
+        rat_t alt_value = {value, 1000};
         memcpy(&altitude, &alt_value, sizeof(altitude));
         addExifTag(EXIFTAGID_GPS_ALTITUDE, EXIF_RATIONAL, 1,
                     1, (void *)&altitude);
@@ -1941,9 +2370,9 @@ bool QualcommCameraHardware::initRaw(bool initJpegHeap)
     // Snapshot
     mRawSize = rawWidth * rawHeight * 3 / 2;
 
-//    if( mCurrentTarget == TARGET_MSM7627 )
-//             mJpegMaxSize = CEILING16(rawWidth) * CEILING16(rawHeight) * 3 / 2;
-//    else
+    if( mCurrentTarget == TARGET_MSM7627 )
+             mJpegMaxSize = CEILING16(rawWidth) * CEILING16(rawHeight) * 3 / 2;
+    else
              mJpegMaxSize = rawWidth * rawHeight * 3 / 2;
 
     LOGV("initRaw: initializing mRawHeap.");
@@ -2014,6 +2443,7 @@ void QualcommCameraHardware::deinitRawSnapshot()
 {
     LOGV("deinitRawSnapshot E");
     mRawSnapShotPmemHeap.clear();
+    mRawSnapshotAshmemHeap.clear();
     LOGV("deinitRawSnapshot X");
 }
 
@@ -2168,14 +2598,14 @@ status_t QualcommCameraHardware::startPreviewInternal()
     //Reset the Gps Information
     exif_table_numEntries = 0;
 
-//    if(native_get_maxzoom(mCameraControlFd, (void *)&mMaxZoom) == true){
-//        LOGD("Maximum zoom value is %d", mMaxZoom);
-//        mParameters.set("zoom-supported", "true");
-//    } else {
-//        LOGE("Failed to get maximum zoom value...setting max zoom to zero");
+    if(native_get_maxzoom(mCameraControlFd, (void *)&mMaxZoom) == true){
+        LOGD("Maximum zoom value is %d", mMaxZoom);
+        mParameters.set("zoom-supported", "true");
+    } else {
+        LOGE("Failed to get maximum zoom value...setting max zoom to zero");
         mParameters.set("zoom-supported", "false");
         mMaxZoom = 0;
-//    }
+    }
     mParameters.set("max-zoom",mMaxZoom);
 
     LOGV("startPreviewInternal X");
@@ -2608,32 +3038,33 @@ status_t QualcommCameraHardware::setParameters(const CameraParameters& params)
     status_t rc, final_rc = NO_ERROR;
 
     if ((rc = setPreviewSize(params))) final_rc = rc;
-    if ((rc = setPreviewFrameRate(params))) final_rc = rc;
+    //if ((rc = setPreviewFrameRate(params))) final_rc = rc;
     if ((rc = setPictureSize(params)))  final_rc = rc;
     if ((rc = setJpegQuality(params)))  final_rc = rc;
-//    if ((rc = setAntibanding(params)))  final_rc = rc;
+    if ((rc = setAntibanding(params)))  final_rc = rc;
     if ((rc = setAutoExposure(params))) final_rc = rc;
-//    if ((rc = setWhiteBalance(params))) final_rc = rc;
-//    if ((rc = setEffect(params)))       final_rc = rc;
+    if ((rc = setWhiteBalance(params))) final_rc = rc;
+    if ((rc = setEffect(params)))       final_rc = rc;
 //    if ((rc = setFlash(params)))        final_rc = rc;
     if ((rc = setGpsLocation(params)))  final_rc = rc;
     if ((rc = setRotation(params)))     final_rc = rc;
-//    if ((rc = setZoom(params)))         final_rc = rc;
-//    if ((rc = setFocusMode(params)))    final_rc = rc;
-//    if ((rc = setOrientation(params)))  final_rc = rc;
-//    if ((rc = setBrightness(params)))   final_rc = rc;
+    if ((rc = setZoom(params)))         final_rc = rc;
+    if ((rc = setFocusMode(params)))    final_rc = rc;
+    if ((rc = setOrientation(params)))  final_rc = rc;
+    if ((rc = setBrightness(params)))   final_rc = rc;
 //    if ((rc = setExposureCompensation(params)))   final_rc = rc;
-//    if ((rc = setLensshadeValue(params)))  final_rc = rc;
-//    if ((rc = setISOValue(params)))  final_rc = rc;
+    if ((rc = setLensshadeValue(params)))  final_rc = rc;
+    if ((rc = setISOValue(params)))  final_rc = rc;
     if ((rc = setPictureFormat(params))) final_rc = rc;
-//    if ((rc = setSharpness(params)))    final_rc = rc;
-//    if ((rc = setContrast(params)))     final_rc = rc;
-//    if ((rc = setSaturation(params)))   final_rc = rc;
+    if ((rc = setSharpness(params)))    final_rc = rc;
+    if ((rc = setContrast(params)))     final_rc = rc;
+    if ((rc = setSaturation(params)))   final_rc = rc;
 
     LOGV("setParameters: X");
-    //return final_rc;
+    return final_rc;
     /* Just let whatever passed go through */
-    return NO_ERROR;
+    LOGV("parameter: ",final_rc);
+//    return NO_ERROR;
 }
 
 CameraParameters QualcommCameraHardware::getParameters() const
@@ -3192,8 +3623,29 @@ void QualcommCameraHardware::receiveRawSnapshot(){
          */
         notifyShutter(&mCrop);
 
+        //Create a Ashmem heap to copy data from PMem heap for application layer
+        if(mRawSnapshotAshmemHeap != NULL){
+            LOGV("receiveRawSnapshot: clearing old mRawSnapShotAshmemHeap.");
+            mRawSnapshotAshmemHeap.clear();
+        }
+        mRawSnapshotAshmemHeap = new AshmemPool(
+                                        mRawSnapShotPmemHeap->mBufferSize,
+                                        mRawSnapShotPmemHeap->mNumBuffers,
+                                        mRawSnapShotPmemHeap->mFrameSize,
+                                        "raw ashmem snapshot camera"
+                                        );
+
+        if(!mRawSnapshotAshmemHeap->initialized()){
+            LOGE("receiveRawSnapshot X: error initializing mRawSnapshotHeap");
+            deinitRawSnapshot();
+            return;
+        }
+
+        memcpy(mRawSnapshotAshmemHeap->mHeap->base(),
+                mRawSnapShotPmemHeap->mHeap->base(),
+                mRawSnapShotPmemHeap->mHeap->getSize());
        if (mDataCallback && (mMsgEnabled & CAMERA_MSG_COMPRESSED_IMAGE))
-           mDataCallback(CAMERA_MSG_COMPRESSED_IMAGE, mRawSnapShotPmemHeap->mBuffers[0],
+           mDataCallback(CAMERA_MSG_COMPRESSED_IMAGE, mRawSnapshotAshmemHeap->mBuffers[0],
                 mCallbackCookie);
 
     }
@@ -3441,6 +3893,41 @@ status_t QualcommCameraHardware::setJpegQuality(const CameraParameters& params) 
     return rc;
 }
 
+status_t QualcommCameraHardware::setEffect(const CameraParameters& params)
+{
+
+    const char *str_wb = mParameters.get(CameraParameters::KEY_WHITE_BALANCE);
+    int32_t value_wb = attr_lookup(whitebalance, sizeof(whitebalance) / sizeof(str_map), str_wb);
+    const char *str = params.get(CameraParameters::KEY_EFFECT);
+
+    if (str != NULL) {
+        int32_t value = attr_lookup(effects, sizeof(effects) / sizeof(str_map), str);
+        if (value != NOT_FOUND) {
+            if(!strcmp(sensorType->name, "2mp") && (value != CAMERA_EFFECT_OFF)
+               &&(value != CAMERA_EFFECT_MONO) && (value != CAMERA_EFFECT_NEGATIVE)
+               &&(value != CAMERA_EFFECT_SOLARIZE) && (value != CAMERA_EFFECT_SEPIA)) {
+                LOGE("Special effect parameter is not supported for this sensor");
+                return NO_ERROR;
+            }
+
+           if(((value == CAMERA_EFFECT_MONO) || (value == CAMERA_EFFECT_NEGATIVE)
+           || (value == CAMERA_EFFECT_AQUA) || (value == CAMERA_EFFECT_SEPIA))
+               && (value_wb != CAMERA_WB_AUTO)) {
+               LOGE("Color Effect value will not be set " \
+               "when the whitebalance selected is %s", str_wb);
+               return NO_ERROR;
+           }
+           else {
+               mParameters.set(CameraParameters::KEY_EFFECT, str);
+               bool ret = native_set_parm(CAMERA_SET_PARM_EFFECT, sizeof(value),
+                                           (void *)&value);
+               return ret ? NO_ERROR : UNKNOWN_ERROR;
+          }
+        }
+    }
+    LOGE("Invalid effect value: %s", (str == NULL) ? "NULL" : str);
+    return BAD_VALUE;
+}
 
 status_t QualcommCameraHardware::setAutoExposure(const CameraParameters& params)
 {
@@ -3462,6 +3949,71 @@ status_t QualcommCameraHardware::setAutoExposure(const CameraParameters& params)
     return BAD_VALUE;
 }
 
+status_t QualcommCameraHardware::setSharpness(const CameraParameters& params)
+{
+    if(!strcmp(sensorType->name, "2mp")) {
+        LOGE("Sharpness not supported for this sensor");
+        return NO_ERROR;
+    }
+    int sharpness = params.getInt(CameraParameters::KEY_SHARPNESS);
+    if((sharpness < CAMERA_MIN_SHARPNESS
+            || sharpness > CAMERA_MAX_SHARPNESS))
+        return UNKNOWN_ERROR;
+
+    LOGV("setting sharpness %d", sharpness);
+    mParameters.set(CameraParameters::KEY_SHARPNESS, sharpness);
+    bool ret = native_set_parm(CAMERA_SET_PARM_SHARPNESS, sizeof(sharpness),
+                               (void *)&sharpness);
+    return ret ? NO_ERROR : UNKNOWN_ERROR;
+}
+
+status_t QualcommCameraHardware::setContrast(const CameraParameters& params)
+{
+    if(!strcmp(sensorType->name, "2mp")) {
+        LOGE("Contrast not supported for this sensor");
+        return NO_ERROR;
+    }
+    int contrast = params.getInt(CameraParameters::KEY_CONTRAST);
+    if((contrast < CAMERA_MIN_CONTRAST)
+            || (contrast > CAMERA_MAX_CONTRAST))
+        return UNKNOWN_ERROR;
+
+    LOGV("setting contrast %d", contrast);
+    mParameters.set(CameraParameters::KEY_CONTRAST, contrast);
+    bool ret = native_set_parm(CAMERA_SET_PARM_CONTRAST, sizeof(contrast),
+                               (void *)&contrast);
+    return ret ? NO_ERROR : UNKNOWN_ERROR;
+}
+
+status_t QualcommCameraHardware::setSaturation(const CameraParameters& params)
+{
+    if(!strcmp(sensorType->name, "2mp")) {
+        LOGE("Saturation not supported for this sensor");
+        return NO_ERROR;
+    }
+
+    const char *str = params.get(CameraParameters::KEY_EFFECT);
+    int32_t value = attr_lookup(effects, sizeof(effects) / sizeof(str_map), str);
+
+    if( (value != CAMERA_EFFECT_MONO) && (value != CAMERA_EFFECT_NEGATIVE)
+	    && (value != CAMERA_EFFECT_AQUA) && (value != CAMERA_EFFECT_SEPIA)) {
+
+	int saturation = params.getInt(CameraParameters::KEY_SATURATION);
+	if((saturation < CAMERA_MIN_SATURATION)
+		|| (saturation > CAMERA_MAX_SATURATION))
+	    return UNKNOWN_ERROR;
+
+	LOGV("setting saturation %d", saturation);
+	mParameters.set(CameraParameters::KEY_SATURATION, saturation);
+	bool ret = native_set_parm(CAMERA_SET_PARM_SATURATION, sizeof(saturation),
+		(void *)&saturation);
+	return ret ? NO_ERROR : UNKNOWN_ERROR;
+    } else {
+	LOGE(" Saturation value will not be set " \
+		"when the effect selected is %s", str);
+	return NO_ERROR;
+    }
+}
 
 status_t QualcommCameraHardware::setBrightness(const CameraParameters& params) {
         int brightness = params.getInt("luma-adaptation");
@@ -3475,6 +4027,46 @@ status_t QualcommCameraHardware::setBrightness(const CameraParameters& params) {
         } else {
             return NO_ERROR;
         }
+}
+
+//status_t QualcommCameraHardware::setExposureCompensation(const CameraParameters& params) {
+//        int expcomp = params.getInt("exposure-compensation");
+//
+//	    mParameters.set(CameraParameters::KEY_EXPOSURE_COMPENSATION, expcomp);
+//
+//        expcomp+=2;
+//        bool ret = native_set_parm(CAMERA_SET_PARM_EXPOSURE_COMPENSATION, sizeof(expcomp),
+//                                       (void *)&expcomp);
+//
+//        return ret ? NO_ERROR : UNKNOWN_ERROR;
+//}
+
+status_t QualcommCameraHardware::setWhiteBalance(const CameraParameters& params)
+{
+
+    const char *str_effect = mParameters.get(CameraParameters::KEY_EFFECT);
+    int32_t value_effect = attr_lookup(effects, sizeof(effects) / sizeof(str_map), str_effect);
+
+    if( (value_effect != CAMERA_EFFECT_MONO) && (value_effect != CAMERA_EFFECT_NEGATIVE)
+    && (value_effect != CAMERA_EFFECT_AQUA) && (value_effect != CAMERA_EFFECT_SEPIA)) {
+        const char *str = params.get(CameraParameters::KEY_WHITE_BALANCE);
+
+        if (str != NULL) {
+            int32_t value = attr_lookup(whitebalance, sizeof(whitebalance) / sizeof(str_map), str);
+            if (value != NOT_FOUND) {
+                mParameters.set(CameraParameters::KEY_WHITE_BALANCE, str);
+                bool ret = native_set_parm(CAMERA_SET_PARM_WB, sizeof(value),
+                                           (void *)&value);
+                return ret ? NO_ERROR : UNKNOWN_ERROR;
+            }
+        }
+        LOGE("Invalid whitebalance value: %s", (str == NULL) ? "NULL" : str);
+        return BAD_VALUE;
+    } else {
+            LOGE("Whitebalance value will not be set " \
+            "when the effect selected is %s", str_effect);
+            return NO_ERROR;
+    }
 }
 
 //status_t QualcommCameraHardware::setFlash(const CameraParameters& params)
@@ -3498,35 +4090,88 @@ status_t QualcommCameraHardware::setBrightness(const CameraParameters& params) {
 //    return BAD_VALUE;
 //}
 
-//status_t QualcommCameraHardware::setAntibanding(const CameraParameters& params)
-//{
-//    if(!strcmp(sensorType->name, "2mp") || !strcmp(mSensorInfo.name, "ov5642")) {
-//        LOGE("Parameter AntiBanding is not supported for this sensor");
-//        return NO_ERROR;
-//    }
-//    return NO_ERROR;
-//    const char *str = params.get(CameraParameters::KEY_ANTIBANDING);
-//    if (str != NULL) {
-//        int value = (camera_antibanding_type)attr_lookup(
-//          antibanding, sizeof(antibanding) / sizeof(str_map), str);
-//        if (value != NOT_FOUND) {
-//            camera_antibanding_type temp = (camera_antibanding_type) value;
-//            mParameters.set(CameraParameters::KEY_ANTIBANDING, str);
-//            bool ret;
-//            if (temp == CAMERA_ANTIBANDING_AUTO) {
-//                ret = native_set_parm(CAMERA_ENABLE_AFD,
-//                            0, NULL);
-//            } else {
-//                ret = native_set_parm(CAMERA_SET_PARM_ANTIBANDING,
-//                            sizeof(camera_antibanding_type), (void *)&temp);
-//            }
-//            return ret ? NO_ERROR : UNKNOWN_ERROR;
-//        }
-//    }
-//    LOGE("Invalid antibanding value: %s", (str == NULL) ? "NULL" : str);
-//    return BAD_VALUE;
-//}
+status_t QualcommCameraHardware::setAntibanding(const CameraParameters& params)
+{
+    if(!strcmp(sensorType->name, "2mp") || !strcmp(mSensorInfo.name, "ov5642")) {
+        LOGE("Parameter AntiBanding is not supported for this sensor");
+        return NO_ERROR;
+    }
+    return NO_ERROR;
+    const char *str = params.get(CameraParameters::KEY_ANTIBANDING);
+    if (str != NULL) {
+        int value = (camera_antibanding_type)attr_lookup(
+          antibanding, sizeof(antibanding) / sizeof(str_map), str);
+        if (value != NOT_FOUND) {
+            camera_antibanding_type temp = (camera_antibanding_type) value;
+            mParameters.set(CameraParameters::KEY_ANTIBANDING, str);
+            bool ret;
+            if (temp == CAMERA_ANTIBANDING_AUTO) {
+                ret = native_set_parm(CAMERA_ENABLE_AFD,
+                            0, NULL);
+            } else {
+                ret = native_set_parm(CAMERA_SET_PARM_ANTIBANDING,
+                            sizeof(camera_antibanding_type), (void *)&temp);
+            }
+            return ret ? NO_ERROR : UNKNOWN_ERROR;
+        }
+    }
+    LOGE("Invalid antibanding value: %s", (str == NULL) ? "NULL" : str);
+    return BAD_VALUE;
+}
 
+status_t QualcommCameraHardware::setLensshadeValue(const CameraParameters& params)
+{
+    if( (!strcmp(sensorType->name, "2mp")) ||
+        (!strcmp(mSensorInfo.name, "vx6953")) ||
+		(!strcmp(mSensorInfo.name, "ov5642")) ||
+	(!strcmp(mSensorInfo.name, "VX6953")) ) {
+        LOGI("Parameter Rolloff is not supported for this sensor");
+        return NO_ERROR;
+    }
+    const char *str = params.get(CameraParameters::KEY_LENSSHADE);
+    if (str != NULL) {
+        int value = attr_lookup(lensshade,
+                                    sizeof(lensshade) / sizeof(str_map), str);
+        if (value != NOT_FOUND) {
+            int8_t temp = (int8_t)value;
+            mParameters.set(CameraParameters::KEY_LENSSHADE, str);
+            native_set_parm(CAMERA_SET_PARM_ROLLOFF, sizeof(int8_t), (void *)&temp);
+            return NO_ERROR;
+        }
+    }
+    LOGE("Invalid lensShade value: %s", (str == NULL) ? "NULL" : str);
+    return BAD_VALUE;
+}
+
+status_t  QualcommCameraHardware::setISOValue(const CameraParameters& params) {
+    int8_t temp_hjr;
+    const char *str = params.get(CameraParameters::KEY_ISO_MODE);
+    if (str != NULL) {
+        int value = (camera_iso_mode_type)attr_lookup(
+          iso, sizeof(iso) / sizeof(str_map), str);
+        if (value != NOT_FOUND) {
+            camera_iso_mode_type temp = (camera_iso_mode_type) value;
+            if (value == CAMERA_ISO_DEBLUR) {
+               temp_hjr = true;
+               native_set_parm(CAMERA_SET_PARM_HJR, sizeof(int8_t), (void*)&temp_hjr);
+               mHJR = value;
+            }
+            else {
+               if (mHJR == CAMERA_ISO_DEBLUR) {
+                   temp_hjr = false;
+                   native_set_parm(CAMERA_SET_PARM_HJR, sizeof(int8_t), (void*)&temp_hjr);
+                   mHJR = value;
+               }
+            }
+
+            mParameters.set(CameraParameters::KEY_ISO_MODE, str);
+            native_set_parm(CAMERA_SET_PARM_ISO, sizeof(camera_iso_mode_type), (void *)&temp);
+            return NO_ERROR;
+        }
+    }
+    LOGE("Invalid Iso value: %s", (str == NULL) ? "NULL" : str);
+    return BAD_VALUE;
+}
 
 
 status_t QualcommCameraHardware::setGpsLocation(const CameraParameters& params)
@@ -3623,39 +4268,39 @@ status_t QualcommCameraHardware::setZoom(const CameraParameters& params)
     return rc;
 }
 
-//status_t QualcommCameraHardware::setFocusMode(const CameraParameters& params)
-//{
-//    const char *str = params.get(CameraParameters::KEY_FOCUS_MODE);
-//    if (str != NULL) {
-//        int32_t value = attr_lookup(focus_modes,
-//                                    sizeof(focus_modes) / sizeof(str_map), str);
-//        if (value != NOT_FOUND) {
-//            mParameters.set(CameraParameters::KEY_FOCUS_MODE, str);
-//            // Focus step is reset to infinity when preview is started. We do
-//            // not need to do anything now.
-//            return NO_ERROR;
-//        }
-//    }
-//    LOGE("Invalid focus mode value: %s", (str == NULL) ? "NULL" : str);
-//    return BAD_VALUE;
-//}
+status_t QualcommCameraHardware::setFocusMode(const CameraParameters& params)
+{
+    const char *str = params.get(CameraParameters::KEY_FOCUS_MODE);
+    if (str != NULL) {
+        int32_t value = attr_lookup(focus_modes,
+                                    sizeof(focus_modes) / sizeof(str_map), str);
+        if (value != NOT_FOUND) {
+            mParameters.set(CameraParameters::KEY_FOCUS_MODE, str);
+            // Focus step is reset to infinity when preview is started. We do
+            // not need to do anything now.
+            return NO_ERROR;
+        }
+    }
+    LOGE("Invalid focus mode value: %s", (str == NULL) ? "NULL" : str);
+    return BAD_VALUE;
+}
 
-//status_t QualcommCameraHardware::setOrientation(const CameraParameters& params)
-//{
-//    const char *str = params.get("orientation");
-//
-//    if (str != NULL) {
-//        if (strcmp(str, "portrait") == 0 || strcmp(str, "landscape") == 0) {
-//            // Camera service needs this to decide if the preview frames and raw
-//            // pictures should be rotated.
-//            mParameters.set("orientation", str);
-//        } else {
-//            LOGE("Invalid orientation value: %s", str);
-//            return BAD_VALUE;
-//        }
-//    }
-//    return NO_ERROR;
-//}
+status_t QualcommCameraHardware::setOrientation(const CameraParameters& params)
+{
+    const char *str = params.get("orientation");
+
+    if (str != NULL) {
+        if (strcmp(str, "portrait") == 0 || strcmp(str, "landscape") == 0) {
+            // Camera service needs this to decide if the preview frames and raw
+            // pictures should be rotated.
+            mParameters.set("orientation", str);
+        } else {
+            LOGE("Invalid orientation value: %s", str);
+            return BAD_VALUE;
+        }
+    }
+    return NO_ERROR;
+}
 
 status_t QualcommCameraHardware::setPictureFormat(const CameraParameters& params)
 {

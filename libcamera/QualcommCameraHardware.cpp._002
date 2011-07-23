@@ -685,7 +685,7 @@ void QualcommCameraHardware::initDefaultParameters()
 //            CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES,
 //            DEFAULT_FPS);
 //    }
-//    mParameters.setPreviewFormat("yuv420sp"); // informative
+    mParameters.setPreviewFormat("yuv420sp"); // informative
 
     mParameters.setPictureSize(DEFAULT_PICTURE_WIDTH, DEFAULT_PICTURE_HEIGHT);
     mParameters.setPictureFormat("jpeg"); // informative
@@ -705,8 +705,8 @@ void QualcommCameraHardware::initDefaultParameters()
                     CameraParameters::AUTO_EXPOSURE_FRAME_AVG);
     mParameters.set(CameraParameters::KEY_FOCUS_MODE,
                     CameraParameters::FOCUS_MODE_AUTO);
-//    mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS,
-//                    "yuv420sp");
+    mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS,
+                    "yuv420sp");
 
     mParameters.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES,
                     preview_size_values.string());
