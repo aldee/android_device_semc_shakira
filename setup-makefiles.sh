@@ -128,15 +128,11 @@ vendor/__VENDOR__/__DEVICE__/proprietary/libGLESv2_adreno200.so:system/lib/egl/l
 
 ## Other libraries and proprietary binaries
 PRODUCT_COPY_FILES += \\
-vendor/__VENDOR__/__DEVICE__/proprietary/libaudio.so:obj/lib/libaudio.so \\
-vendor/__VENDOR__/__DEVICE__/proprietary/libaudio.so:system/lib/libaudio.so \\
 vendor/__VENDOR__/__DEVICE__/proprietary/libaudioeq.so:obj/lib/libaudioeq.so \\
 vendor/__VENDOR__/__DEVICE__/proprietary/libaudioeq.so:system/lib/libaudioeq.so \\
 vendor/__VENDOR__/__DEVICE__/proprietary/sensors.conf:system/etc/sensors.conf \\
 vendor/__VENDOR__/__DEVICE__/proprietary/sensors.default.so:system/lib/hw/sensors.shakira.so \\
-vendor/__VENDOR__/__DEVICE__/proprietary/akmd2:system/bin/akmd2 \\
-vendor/__VENDOR__/__DEVICE__/proprietary/AudioFilterProduct.csv:system/etc/AudioFilterProduct.csv \\
-vendor/__VENDOR__/__DEVICE__/proprietary/AudioFilterPlatform.csv:system/etc/AudioFilterPlatform.csv
+vendor/__VENDOR__/__DEVICE__/proprietary/akmd2:system/bin/akmd2 
 
 #offline charging animation
 PRODUCT_COPY_FILES += \\
