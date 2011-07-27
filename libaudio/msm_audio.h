@@ -60,11 +60,6 @@
 #define AUDIO_START_VOICE    _IOW(AUDIO_IOCTL_MAGIC, 35, unsigned)
 #define AUDIO_STOP_VOICE     _IOW(AUDIO_IOCTL_MAGIC, 36, unsigned)
 #define AUDIO_REINIT_ACDB    _IOW(AUDIO_IOCTL_MAGIC, 39, unsigned)
-#define AUDIO_OUTPORT_FLUSH  _IOW(AUDIO_IOCTL_MAGIC, 40, unsigned short)
-#define AUDIO_SET_ERR_THRESHOLD_VALUE _IOW(AUDIO_IOCTL_MAGIC, 41, \
-					unsigned short)
-#define AUDIO_GET_BITSTREAM_ERROR_INFO _IOR(AUDIO_IOCTL_MAGIC, 42, \
-			       struct msm_audio_bitstream_error_info)
 /* Qualcomm extensions */
 #define AUDIO_SET_STREAM_CONFIG   _IOW(AUDIO_IOCTL_MAGIC, 80, \
 				struct msm_audio_stream_config)
@@ -114,15 +109,6 @@
 #define HEADSET_MONO_PLUS_SPKR_STEREO_RX       0x12
 #define HEADSET_STEREO_PLUS_SPKR_MONO_RX       0x13
 #define HEADSET_STEREO_PLUS_SPKR_STEREO_RX     0x14
-
-/* SEMC:<closed> CRS: 2009-09-04: add the DeviceID(BT Acc Identification).start */
-#define BTDSP_SCO_MIC		0x16
-#define BTDSP_SCO_SPKR		0x17
-#define BTC_SCO_MIC			0x18
-#define BTC_SCO_SPKR		0x19
-#define BTCDSP_SCO_MIC		0x1A
-#define BTCDSP_SCO_SPKR		0x1B
-/* SEMC:<closed> CRS: 2009-09-04: add the DeviceID(BT Acc Identification).end */
 
 #define I2S_RX				0x20
 #define I2S_TX				0x21
@@ -249,7 +235,6 @@ struct msm_audio_pcm_config {
 #define AUDIO_EVENT_WRITE_DONE 2
 #define AUDIO_EVENT_READ_DONE   3
 #define AUDIO_EVENT_STREAM_INFO 4
-#define AUDIO_EVENT_BITSTREAM_ERROR_INFO 5
 
 #define AUDIO_CODEC_TYPE_MP3 0
 #define AUDIO_CODEC_TYPE_AAC 1
@@ -263,16 +248,9 @@ struct msm_audio_bitstream_info {
 	uint32_t unused[3];
 };
 
-struct msm_audio_bitstream_error_info {
-	uint32_t dec_id;
-	uint32_t err_msg_indicator;
-	uint32_t err_type;
-};
-
 union msm_audio_event_payload {
 	struct msm_audio_aio_buf aio_buf;
 	struct msm_audio_bitstream_info stream_info;
-	struct msm_audio_bitstream_error_info error_info;
 	int reserved;
 };
 
@@ -317,22 +295,4 @@ struct msm_audio_route_config {
 	uint32_t stream_id;
 	uint32_t dev_id;
 };
-
-#define AUDIO_MAX_EQ_BANDS 12
-
-struct msm_audio_eq_band {
-	uint16_t     band_idx; /* The band index, 0 .. 11 */
-	uint32_t     filter_type; /* Filter band type */
-	uint32_t     center_freq_hz; /* Filter band center frequency */
-	uint32_t     filter_gain; /* Filter band initial gain (dB) */
-			/* Range is +12 dB to -12 dB with 1dB increments. */
-	uint32_t     q_factor;
-} __attribute__ ((packed));
-
-struct msm_audio_eq_stream_config {
-	uint32_t	enable; /* Number of consequtive bands specified */
-	uint32_t	num_bands;
-	struct msm_audio_eq_band	eq_bands[AUDIO_MAX_EQ_BANDS];
-} __attribute__ ((packed));
-
 #endif
