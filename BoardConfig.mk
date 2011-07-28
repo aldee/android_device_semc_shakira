@@ -46,8 +46,6 @@ TARGET_USES_OLD_LIBSENSORS_HAL:=true
 BOARD_USE_USB_MASS_STORAGE_SWITCH := true
 TARGET_USE_CUSTOM_LUN_FILE_PATH := /sys/devices/platform/msm_hsusb/gadget/lun
 
-TARGET_USE_CUSTOM_VIBRATOR_FILE_PATH := /sys/devices/platform/msm_pmic_vibrator/enable
-
 TARGET_RECOVERY_PRE_COMMAND := "touch /cache/recovery/boot;sync;"
 BOARD_HAS_BOOT_RECOVERY := true
 BOARD_HAS_SMALL_RECOVERY := true
@@ -63,3 +61,6 @@ BOARD_KERNEL_BASE := 0x00200000
 BOARD_SDCARD_INTERNAL_DEVICE := /dev/block/mmcblk0p1
 # A custom ota package maker for a device without a boot partition
 TARGET_RELEASETOOL_OTA_FROM_TARGET_SCRIPT := device/semc/shakira/releasetools/semc_ota_from_target_files
+
+# Vibrator
+BOARD_HAS_VIBRATOR_IMPLEMENTATION := ../../device/semc/shakira/vibrator.c
