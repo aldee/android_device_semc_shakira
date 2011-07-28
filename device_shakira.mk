@@ -116,6 +116,12 @@ PRODUCT_COPY_FILES += \
     vendor/semc/shakira/proprietary/libsystemconnector_hal_jni.so:system/lib/libsystemconnector_hal_jni.so \
     device/semc/shakira/prebuilt/build.prop:system/bin/build.prop
 
+#crappy headset
+PRODUCT_COPY_FILES += \
+    device/semc/shakira/prebuilt/AutoVolumeControl.txt:system/etc/AutoVolumeControl.txt \
+    device/semc/shakira/prebuilt/AudioFilter.csv:system/etc/AudioFilter.csv
+
+
 PRODUCT_PROPERTY_OVERRIDES += \
     rild.libpath=/system/lib/libril-qc-1.so \
     rild.libargs=-d/dev/smd0 \
