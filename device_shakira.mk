@@ -22,6 +22,7 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_KERNEL):kernel
 
 PRODUCT_PACKAGES += \
+    mount_system \
     hostap \
     librs_jni \
     gralloc.shakira \
