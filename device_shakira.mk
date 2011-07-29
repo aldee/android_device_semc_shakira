@@ -28,6 +28,7 @@ PRODUCT_PACKAGES += \
     gralloc.shakira \
     copybit.shakira \
     gps.shakira \
+    libloc_api-rpc \
     lights.shakira \
     libOmxCore \
     libmm-omxcore \
