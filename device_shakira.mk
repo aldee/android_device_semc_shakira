@@ -28,7 +28,6 @@ PRODUCT_PACKAGES += \
     gralloc.shakira \
     copybit.shakira \
     gps.shakira \
-    libloc_api-rpc \
     lights.shakira \
     libOmxCore \
     libmm-omxcore \
@@ -54,8 +53,8 @@ PRODUCT_COPY_FILES += \
     device/semc/shakira/prebuilt/hw_config.sh:system/etc/hw_config.sh \
     device/semc/shakira/prebuilt/bootrec:root/sbin/bootrec \
     device/semc/shakira/recovery.fstab:root/etcrec/recovery.fstab \
-    device/semc/shakira/prebuilt/vold.fstab:system/etc/vold.fstab
-#    device/semc/shakira/prebuilt/logo.rle:root/logo.rle \
+    device/semc/shakira/prebuilt/vold.fstab:system/etc/vold.fstab \
+    device/semc/shakira/prebuilt/initlogo.rle:root/initlogo.rle \
 
     
 #xrecovery
@@ -63,8 +62,6 @@ PRODUCT_COPY_FILES += \
     device/semc/shakira/prebuilt/chargemon:system/bin/chargemon \
     device/semc/shakira/prebuilt/ramdisk.tar:system/bin/ramdisk.tar \
     device/semc/shakira/prebuilt/sh:system/xbin/sh
-#    device/semc/shakira/prebuilt/ramdisk.tar.bz2:system/boot/ramdisk.tar.bz2 \
-#    device/semc/shakira/prebuilt/recovery.tar.bz2:system/bin/recovery.tar.bz2 \
 
 #WIFI modules and configs
 PRODUCT_COPY_FILES += \
@@ -114,13 +111,23 @@ PRODUCT_COPY_FILES += \
     vendor/semc/shakira/proprietary/hal_seport.default.so:system/lib/hw/hal_seport.shakira.so \
     device/semc/shakira/prebuilt/SystemConnector.apk:system/app/SystemConnector.apk \
     vendor/semc/shakira/proprietary/libuinputdevicejni.so:system/lib/libsystemconnector/libuinputdevicejni.so \
-    vendor/semc/shakira/proprietary/libsystemconnector_hal_jni.so:system/lib/libsystemconnector_hal_jni.so \
-    device/semc/shakira/prebuilt/build.prop:system/bin/build.prop
+    vendor/semc/shakira/proprietary/libsystemconnector_hal_jni.so:system/lib/libsystemconnector_hal_jni.so 
 
-#crappy headset
+
 PRODUCT_COPY_FILES += \
     device/semc/shakira/prebuilt/AutoVolumeControl.txt:system/etc/AutoVolumeControl.txt \
     device/semc/shakira/prebuilt/AudioFilter.csv:system/etc/AudioFilter.csv
+
+#new charging animations
+PRODUCT_COPY_FILES += \
+    device/semc/shakira/prebuilt/animations/anim1.rle:system/etc/semc/chargemon/anim1.rle \
+    device/semc/shakira/prebuilt/animations/anim2.rle:system/etc/semc/chargemon/anim2.rle \
+    device/semc/shakira/prebuilt/animations/anim3.rle:system/etc/semc/chargemon/anim3.rle \
+    device/semc/shakira/prebuilt/animations/anim4.rle:system/etc/semc/chargemon/anim4.rle \
+    device/semc/shakira/prebuilt/animations/anim5.rle:system/etc/semc/chargemon/anim5.rle \
+    device/semc/shakira/prebuilt/animations/anim6.rle:system/etc/semc/chargemon/anim6.rle \
+    device/semc/shakira/prebuilt/animations/anim7.rle:system/etc/semc/chargemon/anim7.rle \
+    device/semc/shakira/prebuilt/animations/anim8.rle:system/etc/semc/chargemon/anim8.rle 
 
 
 PRODUCT_PROPERTY_OVERRIDES += \

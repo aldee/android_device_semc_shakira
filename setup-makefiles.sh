@@ -139,15 +139,7 @@ PRODUCT_COPY_FILES += \\
 vendor/__VENDOR__/__DEVICE__/proprietary/chargemon:system/bin/charger \\
 vendor/__VENDOR__/__DEVICE__/proprietary/libmiscta.so:system/lib/libmiscta.so \\
 vendor/__VENDOR__/__DEVICE__/proprietary/semc_chargalg:system/bin/semc_chargalg \\
-vendor/__VENDOR__/__DEVICE__/proprietary/updatemiscta:system/bin/updatemiscta \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim1.rle:system/etc/semc/chargemon/anim1.rle \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim2.rle:system/etc/semc/chargemon/anim2.rle \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim3.rle:system/etc/semc/chargemon/anim3.rle \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim4.rle:system/etc/semc/chargemon/anim4.rle \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim5.rle:system/etc/semc/chargemon/anim5.rle \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim6.rle:system/etc/semc/chargemon/anim6.rle \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim7.rle:system/etc/semc/chargemon/anim7.rle \\
-vendor/__VENDOR__/__DEVICE__/proprietary/anim8.rle:system/etc/semc/chargemon/anim8.rle 
+vendor/__VENDOR__/__DEVICE__/proprietary/updatemiscta:system/bin/updatemiscta 
 
 
 EOF

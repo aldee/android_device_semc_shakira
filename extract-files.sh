@@ -106,9 +106,6 @@ adb pull /system/etc/vold.fstab ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/etc/sensors.conf ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/bin/chargemon ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/bin/akmd2 ../../../vendor/$VENDOR/$DEVICE/proprietary
-#adb pull /system/etc/AudioFilterProduct.csv ../../../vendor/$VENDOR/$DEVICE/proprietary
-#adb pull /system/etc/AudioFilterPlatform.csv ../../../vendor/$VENDOR/$DEVICE/proprietary
-#adb pull /system/lib/libaudio.so ../../../vendor/$VENDOR/$DEVICE/proprietary
 
 #offline charger
 adb pull /system/bin/chargemon ../../../vendor/$VENDOR/$DEVICE/proprietary
