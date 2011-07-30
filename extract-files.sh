@@ -104,7 +104,6 @@ adb pull /system/lib/egl/libGLESv2_adreno200.so ../../../vendor/$VENDOR/$DEVICE/
 adb pull /system/lib/libaudioeq.so ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/etc/vold.fstab ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/etc/sensors.conf ../../../vendor/$VENDOR/$DEVICE/proprietary
-adb pull /system/bin/chargemon ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/bin/akmd2 ../../../vendor/$VENDOR/$DEVICE/proprietary
 
 #offline charger
