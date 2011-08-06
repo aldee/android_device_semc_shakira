@@ -33,15 +33,8 @@ PRODUCT_COPY_FILES += \
 
 # Init files
 PRODUCT_COPY_FILES += \
-    device/semc/shakira/prebuilt/init.delta.rc:root/init.delta.rc \
-    device/semc/shakira/prebuilt/ueventd.delta.rc:root/ueventd.delta.rc \
-    device/semc/shakira/prebuilt/hw_config.sh:system/etc/hw_config.sh \
-    device/semc/shakira/prebuilt/bootrec:root/sbin/bootrec \
-    device/semc/shakira/recovery.fstab:root/recovery.fstab \
-    device/semc/shakira/prebuilt/vold.fstab:system/etc/vold.fstab \
-    device/semc/shakira/prebuilt/initlogo.rle:root/initlogo.rle \
+    device/semc/shakira/prebuilt/bootrec:root/sbin/bootrec 
 
-    
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.sf.lcd_density=160 \
 
