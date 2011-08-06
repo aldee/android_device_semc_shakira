@@ -109,8 +109,7 @@ vendor/__VENDOR__/__DEVICE__/proprietary/TIInit_7.2.31.bts:system/etc/firmware/T
 
 ## SE Sensors
 PRODUCT_COPY_FILES += \\
-vendor/__VENDOR__/__DEVICE__/proprietary/sensors.default.so:system/lib/hw/sensors.shakira.so\\
-vendor/__VENDOR__/__DEVICE__/proprietary/copybit.msm7k.so:system/lib/hw/copybit.shakira.so
+vendor/__VENDOR__/__DEVICE__/proprietary/sensors.default.so:system/lib/hw/sensors.msm7k.so
 
 ## WIFI & BT TI1271
 PRODUCT_COPY_FILES += \\
@@ -131,7 +130,6 @@ PRODUCT_COPY_FILES += \\
 vendor/__VENDOR__/__DEVICE__/proprietary/libaudioeq.so:obj/lib/libaudioeq.so \\
 vendor/__VENDOR__/__DEVICE__/proprietary/libaudioeq.so:system/lib/libaudioeq.so \\
 vendor/__VENDOR__/__DEVICE__/proprietary/sensors.conf:system/etc/sensors.conf \\
-vendor/__VENDOR__/__DEVICE__/proprietary/sensors.default.so:system/lib/hw/sensors.shakira.so \\
 vendor/__VENDOR__/__DEVICE__/proprietary/akmd2:system/bin/akmd2 
 
 #offline charging animation

@@ -109,6 +109,7 @@ adb pull /system/bin/akmd2 ../../../vendor/$VENDOR/$DEVICE/proprietary
 #offline charger
 adb pull /system/bin/chargemon ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/bin/semc_chargalg ../../../vendor/$VENDOR/$DEVICE/proprietary
+adb pull /system/bin/updatemiscta ../../../vendor/$VENDOR/$DEVICE/proprietary
 adb pull /system/lib/libmiscta.so ../../../vendor/$VENDOR/$DEVICE/proprietary
 
 #hw
