@@ -30,7 +30,7 @@ DEVICE_PACKAGE_OVERLAYS += device/semc/shakira/overlay
 # These are the hardware-specific configuration files
 PRODUCT_COPY_FILES += \
 	device/semc/shakira/prebuilt/media_profiles.xml:system/etc/media_profiles.xml \
-       device/semc/shakira/prebuilt/initlogo.rle:root/initlogo.rle 
+	device/semc/shakira/prebuilt/initlogo_mdpi.rle:root/initlogo.rle 
 
 # Init files
 PRODUCT_COPY_FILES += \
