@@ -51,7 +51,7 @@ char const*const BLUE_LED_FILE   = "/sys/class/semc/rgb_led/blue:brightness";
 char const*const FREQ_FILE       = "/sys/class/semc/rgb_led/frequency";
 char const*const PWM_FILE        = "/sys/class/semc/rgb_led/pwm";
 char const*const BLINK_FILE      = "/sys/class/semc/rgb_led/blink";
-char const*const POWER_FILE      = "/sys/class/semc/rgb_led/power";
+//char const*const POWER_FILE      = "/sys/class/semc/rgb_led/power";
 
 //char const*const LCD_FILE        = "/sys/devices/platform/i2c-adapter/i2c-0/0-0036/br::intensity";
 
@@ -186,19 +186,18 @@ set_speaker_light_locked(struct light_device_t* dev,
         write_int(PWM_FILE, 255);
         write_int(BLINK_FILE, 1);
 
+
     if (onMS > 0 && offMS > 0) {
         int totalMS = onMS + offMS;
 
         // the LED appears to blink about once per second if freq is 20
         // 1000ms / 20 = 50
-        freq = (onMS * 5) / totalMS;
+        freq = (onMS / 200) * 5;
         // pwm specifies the ratio of ON versus OFF
         // pwm = 0 -> always off
         // pwm = 255 => always on
-        pwm = (onMS * 5) / totalMS;
-
+        pwm = (onMS / 100) * 5;
         // the low 4 bits are ignored, so round up if necessary
-
         blink = 1;
     } else {
         blink = 0;
@@ -210,9 +209,6 @@ set_speaker_light_locked(struct light_device_t* dev,
             write_int(FREQ_FILE, freq);
             write_int(PWM_FILE, pwm);
             write_int(BLINK_FILE, 1);
-        }
-        else{ 
-//        write_int(BLINK_FILE, blink);
         }
 
     return 0;
