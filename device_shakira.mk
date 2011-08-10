@@ -22,6 +22,9 @@ PRODUCT_COPY_FILES += \
 
 -include device/semc/msm7x27-common/msm7x27.mk
 
+PRODUCT_PACKAGES += \
+    lights.shakira 
+
 # These is the hardware-specific overlay, which points to the location
 # of hardware-specific resource overrides, typically the frameworks and
 # application settings that are stored in resourced.
@@ -30,7 +33,7 @@ DEVICE_PACKAGE_OVERLAYS += device/semc/shakira/overlay
 # These are the hardware-specific configuration files
 PRODUCT_COPY_FILES += \
 	device/semc/shakira/prebuilt/media_profiles.xml:system/etc/media_profiles.xml \
-	device/semc/shakira/prebuilt/initlogo_mdpi.rle:root/initlogo.rle 
+	device/semc/msm7x27-common/prebuilt/initlogo_mdpi.rle:root/initlogo.rle 
 
 # Init files
 PRODUCT_COPY_FILES += \
