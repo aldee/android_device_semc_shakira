@@ -29,6 +29,4 @@
 	<bool name="ffc_canZoom">false</bool>
 	<string name="ffc_supportedEffects"></string>
 
-	<!-- Resolution filtering -->
-	<string name="filtered_pictureSizes"></string>
 </resources>
